@@ -137,12 +137,13 @@ Running Mutect and HaplotypeCaller on CGOV Data
 ```
 for normal_bam in /storage1/fs1/krais/Active/DFCI_OV/HG38_BAMs/*N*.hg38.bam; do
   sn=$(basename $normal_bam N.hg38.bam);
-  bsub4 broadinstitute/gatk:4.2.0.0 /gatk/gatk HaplotypeCaller --java-options "-Xmx12g" --native-pair-hmm-threads 3 -O ${sn}.haplotypecaller.g.vcf.gz -R $HG38_REF_DH -I ${normal_bam} --read-index ${normal_bam}.bai -ERC GVCF --max-reads-per-alignment-start 0
-  ls ${sn}T* | while read tumor_bam; do
+  echo $normal_bam
+  bsub4 broadinstitute/gatk:4.2.0.0 /gatk/gatk HaplotypeCaller --java-options "-Xmx12g" --native-pair-hmm-threads 3 -O /storage1/fs1/krais/Active/IrenaeusChan/CGOV_Analysis/HaplotypeCaller/${sn}.haplotypecaller.g.vcf.gz -R $HG38_REF_DH -I ${normal_bam} --read-index ${normal_bam}.bai -ERC GVCF --max-reads-per-alignment-start 0
+  ls ${sn}T*.bam | while read tumor_bam; do
     echo $tumor_bam;
     tumor_sn=$(basename $tumor_bam .hg38.bam);
-    bsub4 broadinstitute/gatk:4.2.0.0 /gatk/gatk Mutect2 --java-options "-Xmx12g" --native-pair-hmm-threads 3 -O ${tumor_sn}.mutect.vcf.gz -R $HG38_REF_DH -I ${tumor_bam} --read-index ${tumor_bam}.bai -tumor "$tumor_sn" -I ${normal_bam} --read-index ${normal_bam}.bai -normal "$sn" --max-reads-per-alignment-start 0
-    bsub4 broadinstitute/gatk:4.2.0.0 /gatk/gatk HaplotypeCaller --java-options "-Xmx12g" --native-pair-hmm-threads 3 -O ${tumor_sn}.haplotypecaller.g.vcf.gz -R $HG38_REF_DH -I ${tumor_bam} --read-index ${tumor_bam}.bai -ERC GVCF --max-reads-per-alignment-start 0
+    bsub4 broadinstitute/gatk:4.2.0.0 /gatk/gatk Mutect2 --java-options "-Xmx12g" --native-pair-hmm-threads 3 -O /storage1/fs1/krais/Active/IrenaeusChan/CGOV_Analysis/Mutect2/${tumor_sn}.mutect.vcf.gz -R $HG38_REF_DH -I ${tumor_bam} --read-index ${tumor_bam}.bai -tumor "$tumor_sn" -I ${normal_bam} --read-index ${normal_bam}.bai -normal "$sn" --max-reads-per-alignment-start 0
+    bsub4 broadinstitute/gatk:4.2.0.0 /gatk/gatk HaplotypeCaller --java-options "-Xmx12g" --native-pair-hmm-threads 3 -O /storage1/fs1/krais/Active/IrenaeusChan/CGOV_Analysis/HaplotypeCaller/${tumor_sn}.haplotypecaller.g.vcf.gz -R $HG38_REF_DH -I ${tumor_bam} --read-index ${tumor_bam}.bai -ERC GVCF --max-reads-per-alignment-start 0
     done;
 done
 ```
