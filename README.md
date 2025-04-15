@@ -123,3 +123,41 @@ for vcf in TCGA_BRCA/*.vcf; do
   grep -v '^#' $vcf | awk -F'\t' -v sn="$sn" '$12=="Ins" || $12=="Del" {print $0"\t"sn}' >> TCGA_BRCA_InsDel.tsv
 done
 ```
+
+# Analysis for Dana-Farber Cancer Institute Ovariant Data
+Realign hg19 to hg38
+```
+for bam in /storage1/fs1/krais/Active/DFCI_OV/BAM_Files/*.bam; do 
+  sn=$(basename $bam .bam); 
+  bsub8 fredhutch/bwa:0.7.17-samtools-1.10 $scripts/hengli_realign.sh $bam /storage1/fs1/krais/Active/DFCI_OV/HG38_BAMs/${sn}.hg38.bam $HG38_REF_DH; 
+done
+```
+
+Running Mutect and HaplotypeCaller on CGOV Data
+```
+for normal_bam in /storage1/fs1/krais/Active/DFCI_OV/HG38_BAMs/*N*.hg38.bam; do
+  sn=$(basename $normal_bam N.hg38.bam);
+  bsub4 broadinstitute/gatk:4.2.0.0 /gatk/gatk HaplotypeCaller --java-options "-Xmx12g" --native-pair-hmm-threads 3 -O ${sn}.haplotypecaller.g.vcf.gz -R $HG38_REF_DH -I ${normal_bam} --read-index ${normal_bam}.bai -ERC GVCF --max-reads-per-alignment-start 0
+  ls ${sn}T* | while read tumor_bam; do
+    echo $tumor_bam;
+    tumor_sn=$(basename $tumor_bam .hg38.bam);
+    bsub4 broadinstitute/gatk:4.2.0.0 /gatk/gatk Mutect2 --java-options "-Xmx12g" --native-pair-hmm-threads 3 -O ${tumor_sn}.mutect.vcf.gz -R $HG38_REF_DH -I ${tumor_bam} --read-index ${tumor_bam}.bai -tumor "$tumor_sn" -I ${normal_bam} --read-index ${normal_bam}.bai -normal "$sn" --max-reads-per-alignment-start 0
+    bsub4 broadinstitute/gatk:4.2.0.0 /gatk/gatk HaplotypeCaller --java-options "-Xmx12g" --native-pair-hmm-threads 3 -O ${tumor_sn}.haplotypecaller.g.vcf.gz -R $HG38_REF_DH -I ${tumor_bam} --read-index ${tumor_bam}.bai -ERC GVCF --max-reads-per-alignment-start 0
+    done;
+done
+```
+
+# Analysis for the MG126 Assay
+Running Mutect on the 126
+```
+for dir in $(ls -d /storage1/fs1/krais/Active/SR007150_Krais_MG126_Capture/watchmaker/SA*); do
+  sn=$(echo $dir | cut -d'/' -f8);
+  echo $sn;
+  bsub4 broadinstitute/gatk:4.2.0.0 /gatk/gatk Mutect2 --java-options "-Xmx12g" --native-pair-hmm-threads 3 -O ${sn}.mutect.vcf.gz -R $HG38_REF_DH -I ${dir}/${sn}.cram --read-index ${dir}/${sn}.cram.crai --max-reads-per-alignment-start 0
+done
+for mutect_vcf in /storage1/fs1/krais/Active/IrenaeusChan/MG126_Analysis/Mutect2/*.vcf.gz; do
+  sn=$(basename $mutect_vcf .vcf.gz);
+  echo $sn;
+  bsub4 broadinstitute/gatk:4.2.0.0 /gatk/gatk FilterMutectCalls -R $HG38_REF_DH -V ${mutect_vcf} -O ${sn}.filtered.vcf.gz
+done
+```
