@@ -151,14 +151,26 @@ done
 # Analysis for the MG126 Assay
 Running Mutect on the 126
 ```
-for dir in $(ls -d /storage1/fs1/krais/Active/SR007150_Krais_MG126_Capture/watchmaker/SA*); do
-  sn=$(echo $dir | cut -d'/' -f8);
-  echo $sn;
-  bsub4 broadinstitute/gatk:4.2.0.0 /gatk/gatk Mutect2 --java-options "-Xmx12g" --native-pair-hmm-threads 3 -O ${sn}.mutect.vcf.gz -R $HG38_REF_DH -I ${dir}/${sn}.cram --read-index ${dir}/${sn}.cram.crai --max-reads-per-alignment-start 0
+for dir in $(ls -d SA_*/); do 
+  echo $dir;
+  sn=$(basename $dir);
+  bsub4 kboltonlab/htslib_python3.12:latest python3 /storage1/fs1/krais/Active/IrenaeusChan/MG126_Analysis/ddia.py -r $HG38_REF_DH -b /storage1/fs1/krais/Active/SR007150_Krais_MG126_Capture/mg126combined.bed -cb /storage1/fs1/krais/Active/SR007150_Krais_MG126_Capture/krais_targets.bed -f $dir/${sn}.cram -c 4 -o /storage1/fs1/krais/Active/IrenaeusChan/MG126_Analysis/PythonCode/${sn}.tsv;
 done
-for mutect_vcf in /storage1/fs1/krais/Active/IrenaeusChan/MG126_Analysis/Mutect2/*.vcf.gz; do
-  sn=$(basename $mutect_vcf .vcf.gz);
-  echo $sn;
-  bsub4 broadinstitute/gatk:4.2.0.0 /gatk/gatk FilterMutectCalls -R $HG38_REF_DH -V ${mutect_vcf} -O ${sn}.filtered.vcf.gz
+
+head -n1 SA_RPE_P53KO_24hMG126.tsv > header.txt
+awk '{$0=$0"\tSample"}1' header.txt > temp && mv temp header.txt
+cat header.txt > CellLine_InsDel.tsv
+for tsv in *.tsv; do 
+  sn=$(basename $tsv .tsv); 
+  echo $tsv; 
+  tail -n+2 $tsv | awk -F'\t' -v sn="$sn" '{print $0"\t"sn}' >> CellLine_InsDel.tsv; 
+done
+
+for dir in $(ls -d /storage1/fs1/krais/Active/SR007150_Krais_MG126_Capture/watchmaker/SA_*ctrl/); do 
+  genotype=$(basename ${dir%_ctrl/})
+  echo $genotype;
+  code_dir="/storage1/fs1/krais/Active/IrenaeusChan/DaveSpencerCode/";
+  bsub4 kboltonlab/htslib_python3.12 python3 ${code_dir}/extract_variant_reads.py -f $HG38_REF_DH ${code_dir}/DaveSpencerScriptInput.csv ${PWD}/${genotype}_72hMG126/${genotype}_72hMG126.cram ${PWD}/${genotype}_ctrl/${genotype}_ctrl.cram -o ${code_dir}/Outputs/${genotype}_72hMG126.txt;
+  bsub4 kboltonlab/htslib_python3.12 python3 ${code_dir}/extract_variant_reads.py -f $HG38_REF_DH ${code_dir}/DaveSpencerScriptInput.csv ${PWD}/${genotype}_24hMG126/${genotype}_24hMG126.cram ${PWD}/${genotype}_ctrl/${genotype}_ctrl.cram -o ${code_dir}/Outputs/${genotype}_24hMG126.txt;
 done
 ```
