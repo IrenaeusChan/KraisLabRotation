@@ -146,6 +146,41 @@ for normal_bam in /storage1/fs1/krais/Active/DFCI_OV/HG38_BAMs/*N*.hg38.bam; do
     bsub4 broadinstitute/gatk:4.2.0.0 /gatk/gatk HaplotypeCaller --java-options "-Xmx12g" --native-pair-hmm-threads 3 -O /storage1/fs1/krais/Active/IrenaeusChan/CGOV_Analysis/HaplotypeCaller/${tumor_sn}.haplotypecaller.g.vcf.gz -R $HG38_REF_DH -I ${tumor_bam} --read-index ${tumor_bam}.bai -ERC GVCF --max-reads-per-alignment-start 0
     done;
 done
+
+# Realized I also need to run Mutect2 on the Normal Samples, just not in paired mode
+for normal_bam in /storage1/fs1/krais/Active/DFCI_OV/HG38_BAMs/FIXED/*N*.hg38.RG_fixed.bam; do
+  sn=$(basename $normal_bam .hg38.RG_fixed.bam);
+  echo $normal_bam
+  echo "${sn}"
+  bsubn 4 32 general broadinstitute/gatk:4.2.0.0 /gatk/gatk Mutect2 --java-options "-Xmx30g" --native-pair-hmm-threads 4 -O /storage1/fs1/krais/Active/IrenaeusChan/CGOV_Analysis/Mutect2/${sn}.mutect.vcf.gz -R $HG38_REF_DH -I ${normal_bam} --read-index ${normal_bam}.bai --max-reads-per-alignment-start 0
+done
+
+# Need to run Filter Mutect
+for mutect_vcf in *.mutect.vcf.gz; do
+  sn=$(basename $mutect_vcf .mutect.vcf.gz);
+  echo $sn
+  bsubn 4 32 general broadinstitute/gatk:4.2.0.0 /gatk/gatk FilterMutectCalls -R $HG38_REF_DH -V $mutect_vcf -O ${sn}.filtered.mutect.vcf.gz;
+done;
+
+# Run the ScarMapper on these VCFs
+for vcf in /storage1/fs1/krais/Active/IrenaeusChan/CGOV_Analysis/Mutect2/*.filtered.mutect.vcf.gz; do
+  sn=$(basename $vcf .filtered.mutect.vcf.gz);
+  CompareGroup="CGOV";
+  Sample_Name=${sn}.analysis;
+  VCF_File=$vcf;
+  sed "s|<Sample_Name>|$Sample_Name|g" /storage1/fs1/krais/Active/IrenaeusChan/VCF_Analysis/input_params_template.txt > /storage1/fs1/krais/Active/IrenaeusChan/CGOV_Analysis/ScarMapperAnalysis/InputParams/input_params_${Sample_Name}.txt
+  sed -i "s|<VCF_File>|$VCF_File|g" /storage1/fs1/krais/Active/IrenaeusChan/CGOV_Analysis/ScarMapperAnalysis/InputParams/input_params_${Sample_Name}.txt
+  sed -i "s|<Group>|$CompareGroup|g" /storage1/fs1/krais/Active/IrenaeusChan/CGOV_Analysis/ScarMapperAnalysis/InputParams/input_params_${Sample_Name}.txt
+  bsub4 kboltonlab/krais_vcf_analysis:latest python /app/MainAPP_IC.py --options_file /storage1/fs1/krais/Active/IrenaeusChan/CGOV_Analysis/ScarMapperAnalysis/InputParams/input_params_${Sample_Name}.txt
+done
+
+# Combine together
+cat header.txt > CGOV_InsDel.tsv
+for vcf in CGOV/*.vcf; do 
+  sn=$(basename $vcf .analysis.vcf)
+  echo $sn
+  grep -v '^#' $vcf | awk -F'\t' -v sn="$sn" '$12=="Ins" || $12=="Del" {print $0"\t"sn}' >> CGOV_InsDel.tsv
+done
 ```
 
 # Analysis for the MG126 Assay
